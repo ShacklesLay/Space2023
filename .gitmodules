@@ -1,0 +1,3 @@
+[submodule "MOSS"]
+	path = MOSS
+	url = https://github.com/OpenLMLab/MOSS
