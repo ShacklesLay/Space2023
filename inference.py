@@ -7,23 +7,47 @@ from accelerate import init_empty_weights, load_checkpoint_and_dispatch
 from peft import PeftModel
 import argparse
 
-instruction = "文本中存在空间语义异常，为了描述空间语义异常，最多可以选取6个文本片段，最少可以选取1个。每个文本片段包含3个字段，分别是角色（role）、文本内容（text）和字序数组 （idxes）。role的取值包括S1,P1,E1,S2,P2,E2，当文本片段个数不大于3时，role的取值包括S1,P1,E1。异常文本片段的选取有以下六种情况：\n \
-1.6 个文本片段。这些片段形成两个完整的“空间实体(S)-空间方位(P)-事件(E)”三元组，其对应的role分别为S1,P1,E1,S2,P2,E2。如“池水照见了她的面容和身影；她笑，池水里的影子也向着她笑；她假装生气，池水外的影子也向着她生气”，需要池水里的影子和池水外的影子共同描述空间语义异常。异常文本片段是S1 影子, P1 池水里, E1 笑, S2 影子, P2 池水外, E2 生气。 \
-2.5 个文本片段。这些片段形成一个完整的S-P-E三元组和一个不完整的三元组，不完整的三元组缺省了某个role，该role在文本中没有出现。如“双腿上下交叉，右腿在上、左腿在旁”，没有出现表达左腿在旁的方式、目的等的核心谓词成分。异常文本片段是S1 双腿, P1 上下, E1 交叉, S2 左腿, P2 在旁。 \
-3.4 个文本片段。这些片段形成两个不完整的S-P-E三元组，各缺省一个role，两个role在文本中没有出现。如“他钻了进去，于是我也钻了出来，与他大打一场”，该句没有出现表达P信息，所以不标注P1和P2。异常文本片段是S1 他, E1 钻进去, S2 我, E2 钻出来。 \
-4.3 个文本片段。这些片段形成一个完整的S-P-E三元组，其对应的role分别为S1 P1 E1。如“一只手臂枕在脑袋上面”，不需要其他空间信息便可以判断出有空间语义异常，因为手臂只能枕在脑袋下面。异常文本片段是S1 手臂, P1 在脑袋上面, E1 枕。 \
-5.2 个文本片段。这些片段形成一个不完整的S-P-E三元组，缺省了某个role。具体有以下两种情况： \
-- 该role没有在文中出现。如“他上衣上面的后裙是多么美丽！”，没有出现表达后裙位于上衣上面的方式、目的等的核心谓词成分，所以不标注E1。异常文本片段是S1 后裙, P1 上衣后面； \
-- 不需要该role便可以描述异常。如“他可以从缝隙钻进屋子外”，该异常发生在钻进屋子外，与空间实体他无关，所以不标注S1。异常文本片段是P1 屋子外, E1 钻进。 \
-6.1 个文本片段，role的取值是S1、P1或E1，文本的某个空间实体、某个空间方位或某个事件存在异常。如“仰卧在地面边”，处所在地面边存在异常。异常文本片段是P1 在地面边。 \
-仿照上述规则和案例，找出下列文本中含有空间异常的文本片段，输出格式为{ role: 角色, text: 文本内容, idxes: 文本内容的索引数组 }："
-input = "德国人又开炮了，炮弹在这小小的方场上炸开了，黑色的泥土直翻起来，柱子似的。碎片把那些剩下来的树木的枝条都削去了。那个苏联人孤零零地躺在那毫无遮掩的方场上，一只手臂枕在脑袋上面，周围是炸弯了的铁器和炸焦了的树木。"
-query = f"<|Human|>:\n{instruction}\n{input}\n<eoh>\n<|MOSS|>:"
+# instruction = "给定一段描述空间的文本，其中包含空间语义异常的文本片段。请分析文本并找出其中的空间语义异常片段。空间语义异常是指描述物体、场景或事件在空间方面出现与常识或语义规则不符的表述。在给定的文本中，定位并标识出所有的空间语义异常片段。 \
+# 提示：异常文本片段的选取有以下六种情况： \
+# 6个文本片段形成两个完整的“空间实体(S)-空间方位(P)-事件(E)”三元组，对应的role为S1 P1 E1 S2 P2 E2。 \
+# 5个文本片段形成一个完整的S-P-E三元组和一个不完整的三元组，不完整的三元组缺省了某个role。 \
+# 4个文本片段形成两个不完整的S-P-E三元组，各缺省一个role。 \
+# 3个文本片段形成一个完整的S-P-E三元组，对应的role为S1 P1 E1。 \
+# 2个文本片段形成一个不完整的S-P-E三元组，缺省了某个role。 \
+# 1个文本片段，role的取值是S1、P1或E1。 \
+# 模型提供的判断结果应包含以下信息：role、text和idxes。role的取值包括S1、P1、E1、S2、P2和E2，其中S表示空间实体，P表示空间方位，E表示空间事件。当文本片段个数不大于3时，role的取值包括S1、P1和E1。text中包含了与role相对应的文本，而idxes则是文本中每个字符所对应的索引。输出的格式应为一个包含多个字典的列表，每个字典代表一个空间语义异常片段，包含role、text和idxes字段。请根据文本分析出的空间语义异常片段，按照给定的格式提供输出。" 
+# input = "德国人又开炮了，炮弹在这小小的方场上炸开了，黑色的泥土直翻起来，柱子似的。碎片把那些剩下来的树木的枝条都削去了。那个苏联人孤零零地躺在那毫无遮掩的方场上，一只手臂枕在脑袋上面，周围是炸弯了的铁器和炸焦了的树木。"
+# query = f"<|Human|>:\n{instruction}\ninput:{input}\n<eoh>\n<|MOSS|>:"
+query = "给定一段描述空间的文本，其中包含空间语义异常的文本片段。请分析文本并找出其中的空间语义异常片段。空间语义异常是指描述物体、场景或事件在空间方面出现与常识或语义规则不符的表述。在给定的文本中，定位并标识出所有的空间语义异常片段。 \
+提示：异常文本片段的选取有以下六种情况： \
+6个文本片段形成两个完整的“空间实体(S)-空间方位(P)-事件(E)”三元组，对应的role为S1 P1 E1 S2 P2 E2。 \
+5个文本片段形成一个完整的S-P-E三元组和一个不完整的三元组，不完整的三元组缺省了某个role。 \
+4个文本片段形成两个不完整的S-P-E三元组，各缺省一个role。 \
+3个文本片段形成一个完整的S-P-E三元组，对应的role为S1 P1 E1。 \
+2个文本片段形成一个不完整的S-P-E三元组，缺省了某个role。 \
+1个文本片段，role的取值是S1、P1或E1。 \
+模型提供的判断结果应包含以下信息：role、text和idxes。role的取值包括S1、P1、E1、S2、P2和E2，其中S表示空间实体，P表示空间方位，E表示空间事件。当文本片段个数不大于3时，role的取值包括S1、P1和E1。text中包含了与role相对应的文本，而idxes则是文本中每个字符所对应的索引。输出的格式应为一个包含多个字典的列表，每个字典代表一个空间语义异常片段，包含role、text和idxes字段。 \
+请根据文本分析出的空间语义异常片段，按照给定的格式提供输出。 \
+\n \
+以下是按照上述规则从输入文本中找出包含空间语义异常的文本片段的例子： \
+<input>德国人又开炮了，炮弹在这小小的方场上炸开了，黑色的泥土直翻起来，柱子似的。碎片把那些剩下来的树木的枝条都削去了。那个苏联人孤零零地躺在那毫无遮掩的方场上，一只手臂枕在脑袋上面，周围是炸弯了的铁器和炸焦了的树木。 \
+<output>[{'role': 'S1', 'text': '手臂', 'idxes': [79, 80]}, {'role': 'P1', 'text': '在脑袋上面', 'idxes': [82, 83, 84, 85, 86]}, {'role': 'E1', 'text': '枕', 'idxes': [81]}] \
+\n \
+<intput>她穿过方场，到了那战死的苏联士兵身边，她用力把那尸身翻过来。看见他的面孔了，很年轻，很苍白。她轻轻理好了他的头发，又费了很大的劲把他那一双早已僵硬了的手臂弯过来，交叉地覆在他的胸前。然后，她在他旁边坐了上来。 \
+<output>[{'role': 'S1', 'text': '她', 'idxes': [94]}, {'role': 'P1', 'text': '在他旁边', 'idxes': [95, 96, 97, 98]}, {'role': 'E1', 'text': '坐了上来', 'idxes': [99, 100, 101, 102]}] \
+ \n \
+<input>她终于站了起来，离开了那死者。走了不多几步，她马上找到她要的东西了：一个大的炮弹坑。这是几天之前炸进来的，现在，那坑里已经积了些水。 \
+<output>[{'role': 'S1', 'text': '炮弹坑', 'idxes': [38, 39, 40]}, {'role': 'E1', 'text': '炸进来', 'idxes': [48, 49, 50]}] \
+\n \
+按照上述规则，仿照例子，从下列文本中找出包含空间语义异常的文本片段： \
+<intput>桑桑带着柳柳来到城墙下时，已近黄昏。桑桑仰望着这堵高得似乎要碰到了天的城墙，心里很激动。他要带着柳柳沿着台阶登到城墙顶后，但柳柳走不动了。他让柳柳坐在了台阶上，然后脱掉了柳柳脚上的鞋。他看到柳柳的脚板底打了两个豆粒大的血泡。他轻轻地揉了揉她的脚，给她穿上鞋，蹲下来，对她说:“哥哥背你上去。” \
+<output>"
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = "5,6"
-model_path = "/remote-home/cktan/.cache/huggingface/hub/models--fnlp--moss-moon-003-sft/snapshots/7119d446173035561f40977fb9cb999995bb7517"
+# model_path = "/remote-home/cktan/.cache/huggingface/hub/models--fnlp--moss-moon-003-sft/snapshots/7119d446173035561f40977fb9cb999995bb7517"
+model_path = "fnlp/moss-moon-003-sft"
 if not os.path.exists(model_path):
-    model_path = snapshot_download(model_path)
+    model_path = snapshot_download(model_path,resume_download=True)
 
 def infer(args):
     config = AutoConfig.from_pretrained("fnlp/moss-moon-003-sft", trust_remote_code=True)
@@ -39,14 +63,14 @@ def infer(args):
     inputs = tokenizer(query, return_tensors="pt")
     for k in inputs:
         inputs[k] = inputs[k].cuda()
-    outputs = model.generate(**inputs, do_sample=True, temperature=0.7, top_p=0.8, repetition_penalty=1.02, max_new_tokens=256)
+    outputs = model.generate(**inputs, do_sample=True, temperature=0.5, top_p=0.8, repetition_penalty=1.02, max_new_tokens=256)
     response = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
     print('Response:')
     print(response)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--lora_dir', type=str, default='./saved_model/task1_2023-05-10-1302.14', \
+    parser.add_argument('--lora_dir', type=str, default='./saved_model/task1_2023-05-22-2002.06/', \
                                         help='the directory of lora model')
     
     args, _ = parser.parse_known_args()

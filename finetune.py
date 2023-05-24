@@ -61,7 +61,7 @@ def train(args):
         input = data_point["input"]
         response = data_point["output"]
 
-        return f"<|Human|>:\n{instruction}\n{input}\n<eoh>\n<|MOSS|>:{response}"
+        return f"<|Human|>:\n{instruction}\ninput:{input}\n<eoh>\n<|MOSS|>:{response}"
 
 
     def tokenize(prompt):

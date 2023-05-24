@@ -1,5 +1,6 @@
 data/t1&t2/
 saved_model/
+wandb/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
