@@ -20,7 +20,8 @@ def train(args):
         add_eos_token=True, 
         trust_remote_code=True
     )
-
+    tokenizer.eos_token_id = 106068 # The eos_token_id of base model is 106028. We need map the eos token to <eom> (its token id is 106068)
+    
     model = AutoModelForCausalLM.from_pretrained(
         "fnlp/moss-moon-003-sft",
         trust_remote_code=True,
@@ -61,7 +62,7 @@ def train(args):
         input = data_point["input"]
         response = data_point["output"]
 
-        return f"<|Human|>:\n{instruction}\ninput:{input}\n<eoh>\n<|MOSS|>:{response}"
+        return f"<|Human|>:\n{instruction}\ninput:{input}\n<eoh>\n<|MOSS|>:{response}<eom>\n"
 
 
     def tokenize(prompt):
@@ -81,10 +82,10 @@ def train(args):
 
     total_batch_size = args.per_gpu_train_batch_size * args.gradient_accumulation_steps * world_size
     total_optim_steps = train_data.num_rows // total_batch_size
-    # saving_step = int(total_optim_steps/10)
-    # warmup_steps = int(total_optim_steps/10)
-    saving_step = 4
-    warmup_steps = 2
+    saving_step = int(total_optim_steps/5)
+    warmup_steps = int(total_optim_steps/10)
+    # saving_step = 4
+    # warmup_steps = 2
 
     print("***** Running training *****")
     print(f"  Num Epochs = {args.epochs}", )
