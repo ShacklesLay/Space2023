@@ -1,4 +1,4 @@
-*.ipynb
+load.ipynb
 data/t1&t2/
 saved_model/
 wandb/
