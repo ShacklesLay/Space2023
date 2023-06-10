@@ -86,7 +86,7 @@ def generate():
                         else:
                             dest_tuple[cur].append(e)
                 batch_text = ''.join(gen_tokenizer.convert_ids_to_tokens(id for id in batch_data))
-                dest_tuple[0] = {'text': [start_element],
+                dest_tuple[0] = {'text': start_element,
                                  'idxes': [idx for idx in range(main_body[0], main_body[1] + 1)]}
                 for pos, element in enumerate(dest_tuple):
                     if pos == 0:
