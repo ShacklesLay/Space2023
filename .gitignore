@@ -1,7 +1,9 @@
 load.ipynb
-data/t1&t2/
+data/
 saved_model/
 wandb/
+*__pycache__/
+*experiments/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

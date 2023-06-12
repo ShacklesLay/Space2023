@@ -16,11 +16,11 @@ parser.add_argument('--do_sample', action='store_true', default=False)
 
 args = parser.parse_args()
 
-data_dir = '/remote-home/cktan/space/qlora/SpaCE2022/processed_data'
+data_dir = '../data'
 jsonl_dir = '/jsonl'
 train_dir = data_dir + '/processed_task2_train.jsonl'
 dev_dir = data_dir +  '/processed_task2_dev.jsonl'
-test_dir = data_dir +  '/task3_test.jsonl'
+test_dir = data_dir + "/task2_test_input.jsonl"
 
 # pretrained_model_dir = '../pretrained_model/'
 selector_name, generator_name = args.selector, args.generator
@@ -55,7 +55,7 @@ generator_params = {
 # device
 device = torch.device('cuda')
 
-selector_model_dir = '/remote-home/cktan/space/SpaCE2022/final/experiments/' + selector_name \
+selector_model_dir = './experiments/' + selector_name \
             + '_lr_' + str(args.lr_sel) + '_bsz_' + str(args.bsz_sel) + '_sd_' + str(args.sd_sel)
 generator_model_dir = './experiments/' + generator_name \
             + '_lr_' + str(args.lr_gen) + '_bsz_' + str(args.bsz_gen) + '_sd_' + str(args.sd_gen)
