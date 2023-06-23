@@ -4,6 +4,7 @@ saved_model/
 wandb/
 *__pycache__/
 *experiments/
+*upload.py
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
